@@ -1,0 +1,13 @@
+## Interface: 40100
+## Title: The Dot <DeathKnight:Frost>
+## Notes: Processes Events for Frost DKs
+## Author: Team loob
+## DefaultState: enabled
+## LoadOnDemand: 1
+## Version: 0.2-ace3
+## X-Category: Interface Enhancements 
+
+embeds.xml
+
+TheDot-Frost.lua
+TheDot-Frost.xml
