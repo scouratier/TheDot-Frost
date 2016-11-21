@@ -1,5 +1,8 @@
 frost = LibStub("AceAddon-3.0"):NewAddon("frost", "AceConsole-3.0", "AceEvent-3.0")
 
+lastUpdated = 0
+updateInterval = 0.25
+
 function MakeCode( r , g , b)
     return r/255 , g/255 , b/255
 end
@@ -16,12 +19,12 @@ function frost:OnInitialize()
     spells["Obliterate"] =              {r = 16 , g = 0 , b = 0}
     spells["Rune Tap"] =                {r = 32 , g = 0 , b = 0}
     spells["Runic Corruption"] =        {r = 64 , g = 0 , b = 0}
-    spells["Runic Empowerment"] =       {r = 128 , g = 0 , b = 0}
+    spells["Plague Leech"] =            {r = 128 , g = 0 , b = 0}
     spells["Horn of Winter"] =          {r = 0 , g = 1 , b = 0}
     spells["Outbreak"] =                {r = 0 , g = 2 , b = 0} 
     spells["Pillar of Frost"] =         {r = 0 , g = 4 , b = 0}
     spells["Empower Rune Weapon"] =     {r = 0 , g = 8 , b = 0}
-    spells["Raise Dead"] =              {r = 0 , g = 16 , b = 0}
+    spells["Breath of Sindragosa"] =    {r = 0 , g = 16 , b = 0}
 
 end
 
@@ -29,6 +32,7 @@ function frost:OnEnable()
     square_size = 15
     local f = CreateFrame( "Frame" , "one" , UIParent )
     f:SetFrameStrata( "HIGH" )
+    f:SetScript("OnUpdate", onUpdate)
     f:SetWidth( square_size * 2 )
     f:SetHeight( square_size )
     f:SetPoint( "TOPLEFT" , square_size * 2 , 0 )
@@ -46,10 +50,7 @@ function frost:OnEnable()
     self.three:SetHeight( square_size )
     self.three:SetStatusBarTexture("Interface\\AddOns\\thedot\\Images\\Gloss")
     self.three:SetStatusBarColor( 1 , 1 , 1 )
-    
-    self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-    self:RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN")
-    --self:RegisterEvent("CHAT_MSG_WHISPER")
+    --GetBindings()
 end
 
 function frost:OnDisable()
@@ -70,10 +71,66 @@ function canCastNow(inSpell)
     return false , (start+duration - GetTime())
 end
 
-function frost:ACTIONBAR_UPDATE_COOLDOWN()
+function isAUnholyRune(rune)
+    isUnholy = 0
+    isUnholy = GetRuneType(rune)
+    ready = false
+    if isUnholy == 1 then
+        start, duration, ready = GetRuneCooldown(rune)
+    end
+    return ready
 end
 
-function frost:COMBAT_LOG_EVENT_UNFILTERED()
+function isABloodRune(rune)
+    isBlood = 0
+    isBlood = GetRuneType(rune)
+    ready = false
+    if isBlood == 1 then
+        start, duration, ready = GetRuneCooldown(rune)
+    end
+    return ready
+end
+
+function isDepleted(rune)
+    start, duration, ready = GetRuneCooldown(rune)
+    if ready == true then
+        return false
+    else
+        return true
+    end
+end
+
+function getDepletedRunes()
+    ret = 0
+    for i = 1, 6 do
+        if isDepleted(i)== true then
+            ret = ret + 1
+        end
+    end
+    return ret
+end
+
+function getNBloodRunes()
+    ret = 0
+    for i = 1, 2 do
+        if isABloodRune(i) == true then
+            ret = ret + 1
+        end
+    end
+    return ret
+end
+
+function getNUnholyRunes()
+    ret = 0
+    for i = 3, 4 do
+        if isAUnholyRune(i) == true then
+            ret = ret + 1
+        end
+    end
+    return ret
+end
+
+function frost:Update()
     local red = 0
     local green = 0
     local blue = 0
@@ -96,6 +153,7 @@ function frost:COMBAT_LOG_EVENT_UNFILTERED()
         th = UnitHealth("target")
         thm = UnitHealthMax("target")
         thp = th*100/thm
+        br = getNBloodRunes()
 
         runeOneStart, runeOneDuration, runeOne = GetRuneCooldown(1)
         runeTwoStart, runeTwoDuration, runeTwo = GetRuneCooldown(2)
@@ -104,16 +162,21 @@ function frost:COMBAT_LOG_EVENT_UNFILTERED()
         runeFiveStart, runeFiveDuration, runeFive = GetRuneCooldown(5)
         runeSixStart, runeSixDuration, runeSix = GetRuneCooldown(6)
 
+
+
 		local ff, ffrank, fficon, ffcount, ffdebuffType, ffduration, ffexpirationTime, ffisMine, ffisStealable  = UnitDebuff("target","Frost Fever");
         local bp, bprank, bpicon, bpcount, bpdebuffType, bpduration, bpexpirationTime, bpisMine, bpisStealable  = UnitDebuff("target","Blood Plague");
+
+        ob, obcooldown = canCastNow("Obliterate")
+        if ob == true and getDepletedRunes() >= 6 then
+            nextCast = spells["Obliterate"]
+        end
 
         fs, fscooldown = canCastNow("Frost Strike")
         if fs == true and rp > 40 then
             nextCast = spells["Frost Strike"]
         end
         
-
-
         rimebuff, rimerank, rimeicon, rimecount = UnitBuff( "player" , "Freezing Fog")
         if rimebuff ~= nil then
             hb, hbcooldown = canCastNow( "Howling Blast")
@@ -133,6 +196,11 @@ function frost:COMBAT_LOG_EVENT_UNFILTERED()
             end
         end
 
+        pl, plcooldown = canCastNow("Plague Leech")
+        if pl == true and getDepletedRunes() > 2 then
+            nextCast = spells["Plague Leech"]
+        end
+
         pof, pofcooldown = canCastNow("Pillar of Frost")
         if pof == true then
             nextCast = spells["Pillar of Frost"]
@@ -143,9 +211,9 @@ function frost:COMBAT_LOG_EVENT_UNFILTERED()
             nextCast = spells["Empower Rune Weapon"]
         end
 
-        rd, rdcooldown = canCastNow("Raise Dead")
-        if rd == true then
-            nextCast = spells["Raise Dead"]
+        bos, boscooldown = canCastNow("Breath of Sindragosa")
+        if bos == true then
+            nextCast = spells["Breath of Sindragosa"]
         end
 
         howlingblast , howlingblastcooldown = canCastNow("Howling Blast")
@@ -215,4 +283,14 @@ function frost:COMBAT_LOG_EVENT_UNFILTERED()
     green = 0
     blue = 0
     self.three:SetStatusBarColor( red/255, 127/255, blue/255 );
+end
+
+function onUpdate(self, elapsed)
+    --self.lastUpdated = self.lastUpdated + elapsed
+    lastUpdated = lastUpdated + elapsed
+    --if (self.lastUpdated > self.update_interval) then
+    if (lastUpdated > updateInterval) then
+        frost:Update()
+        lastUpdated = 0
+    end
 end
